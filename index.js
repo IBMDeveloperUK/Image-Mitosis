@@ -1,5 +1,4 @@
 console.time('program');
-// require('dotenv').config();
 const spawn = require('child_process').spawn;
 const fetch = require('node-fetch');
 const Jimp = require("jimp");
@@ -62,72 +61,41 @@ function main(params){
             
                     console.log(firstHalf, secondHalf);
             
-                    const P = [];
+                    const P = [firstHalf, secondHalf].map( (halve, idx) => {
+
+                        return new Promise( (resolve, reject) => {
+                            
+                            halve.getBuffer('image/jpeg', (err, image) => {
+                                console.log(err, image);
+    
+                                if(err){
+                                    reject(err);
+                                } else {
+    
+                                    S3.putObject({
+                                            Bucket : params.S3Bucket,
+                                            Key : `${params.processName}/${params.divisionLevel}/${idx}.jpg`,
+                                            Body : image
+                                        }, (err, data) => {
+                                            if(err){
+                                                reject(err);
+                                            } else {
+                                                resolve({
+                                                    image : secondHalf
+                                                });
+                                            }
+                                        })
+                                    ;
+    
+                                }
+    
+                            });
+    
+                        });
+
+                    });
 
                     // https://s3.eu-west-2.amazonaws.com/sean-tracey-london-mitosis/test-upload.jpg
-
-                    const first = new Promise( (resolve, reject) => {
-                        
-                        firstHalf.getBuffer('image/jpeg', (err, image) => {
-                            console.log(err, image);
-
-                            if(err){
-                                reject(err);
-                            } else {
-
-                                S3.putObject({
-                                        Bucket : params.S3Bucket,
-                                        Key : `${params.processName}/${params.divisionLevel}/a.jpg`,
-                                        Body : image
-                                    }, (err, data) => {
-                                        if(err){
-                                            reject(err);
-                                        } else {
-                                            resolve({
-                                                image : secondHalf
-                                            });
-                                        }
-                                    })
-                                ;
-
-                            }
-
-                        });
-
-                    });
-                    
-                    const second = new Promise( (resolve, reject) => {
-                        
-                        secondHalf.getBuffer('image/jpeg', (err, image) => {
-                            console.log(err, image);
-
-                            if(err){
-                                reject(err);
-                            } else {
-
-                                S3.putObject({
-                                        Bucket : params.S3Bucket,
-                                        Key : `${params.processName}/${params.divisionLevel}/b.jpg`,
-                                        Body : image
-                                    }, (err, data) => {
-                                        if(err){
-                                            reject(err);
-                                        } else {
-                                            resolve({
-                                                image : secondHalf
-                                            });
-                                        }
-                                    })
-                                ;
-
-                            }
-                            
-                        });
-
-                    });
-                    
-                    P.push(first);
-                    P.push(second);
                     
                     return Promise.all(P);
             
