@@ -79,16 +79,17 @@ function main(params){
                                     const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
 
                                     S3.putObject({
-                                            Bucket : params.S3Bucket,
+                                            Bucket : params.bucketName,
                                             Key : bucketPath,
-                                            Body : image
+                                            Body : image,
+                                            ACL:'public-read'
                                         }, (err, data) => {
                                             if(err){
                                                 reject(err);
                                             } else {
                                                 resolve({
                                                     image : secondHalf,
-                                                    publicPath : `https://s3.eu-west-2.amazonaws.com/sean-tracey-london-mitosis/${params.processName}/${params.divisionLevel}/${idx}.jpg`
+                                                    publicPath : `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.bucketName}/${params.processName}/${params.divisionLevel}/${idx}.jpg`
                                                 });
                                             }
                                         })
@@ -101,8 +102,6 @@ function main(params){
                         });
 
                     });
-
-                    // https://s3.eu-west-2.amazonaws.com/sean-tracey-london-mitosis/test-upload.jpg
                     
                     return Promise.all(P);
             
@@ -111,10 +110,10 @@ function main(params){
                     // Further invocations
                     halves.forEach(half => {
                         console.log(half.publicPath);
-                        const invokationURL = `${params.functionURL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
-                        console.log(invokationURL);
+                        const invocationURL = `${params.functionURL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
+                        console.log(invocationURL);
                         return;
-                        fetch(`${params.functionURL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`)
+                        fetch(invocationURL)
                             .then(res => {
                                 if(!res.ok){
                                     throw res
