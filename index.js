@@ -3,9 +3,7 @@ const spawn = require('child_process').spawn;
 const fetch = require('node-fetch');
 const Jimp = require("jimp");
 const uuid = require('uuid/v4');
-const AWS = require('aws-sdk');
-
-const S3 = new AWS.S3();
+const AWS = require('ibm-cos-sdk');
 
 function checkParameters(params){
 
@@ -17,10 +15,16 @@ function checkParameters(params){
 
 function main(params){
     
-    console.log("File passed:", params.file);
+    console.log(params);
 
-    AWS.Credentials.accessKeyId = params.AWS_ACCESS_KEY_ID;
-    AWS.Credentials.secretAccessKey = params.AWS_SECRET_ACCESS_KEY;
+    const S3 = new AWS.S3({
+        apiKeyId: params.STORAGE_KEY,
+        endpoint: params.OBJECT_STORAGE_ENDPOINT,
+        ibmAuthEndpoint: "https://iam.ng.bluemix.net/oidc/token",
+        serviceInstanceId: params.OBJECT_INSTANCE_ID
+    });
+
+    console.log(S3.endpoint.hostname);
 
     if(!params.file){
         return {
@@ -71,17 +75,20 @@ function main(params){
                                 if(err){
                                     reject(err);
                                 } else {
-    
+                                    
+                                    const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
+
                                     S3.putObject({
                                             Bucket : params.S3Bucket,
-                                            Key : `${params.processName}/${params.divisionLevel}/${idx}.jpg`,
+                                            Key : bucketPath,
                                             Body : image
                                         }, (err, data) => {
                                             if(err){
                                                 reject(err);
                                             } else {
                                                 resolve({
-                                                    image : secondHalf
+                                                    image : secondHalf,
+                                                    publicPath : `https://s3.eu-west-2.amazonaws.com/sean-tracey-london-mitosis/${params.processName}/${params.divisionLevel}/${idx}.jpg`
                                                 });
                                             }
                                         })
@@ -101,6 +108,25 @@ function main(params){
             
                 })
                 .then(halves => {
+                    // Further invocations
+                    halves.forEach(half => {
+                        console.log(half.publicPath);
+                        const invokationURL = `${params.functionURL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
+                        console.log(invokationURL);
+                        return;
+                        fetch(`${params.functionURL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`)
+                            .then(res => {
+                                if(!res.ok){
+                                    throw res
+                                }
+                            }) 
+                            .catch(err => {
+                                console.log(err);
+                            })
+                        ;
+
+                    });
+
                     console.timeEnd('program');
                 })
                 .catch(err => {
