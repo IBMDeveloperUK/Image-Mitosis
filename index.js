@@ -1,102 +1,152 @@
 console.time('program');
-
-const fs = require('fs');
+// require('dotenv').config();
 const spawn = require('child_process').spawn;
-const argv = require('yargs').argv
+const fetch = require('node-fetch');
 const Jimp = require("jimp");
 const uuid = require('uuid/v4');
+const AWS = require('aws-sdk');
 
-console.log("File passed:", argv.file);
+const S3 = new AWS.S3();
 
-if(!argv.file){
-    console.log('No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.\nExiting.');
-    process.exit();
+function checkParameters(params){
+
+    if(!params.file){
+
+    }
+
 }
 
-Jimp.read(fs.readFileSync(argv.file))
-    .then(image => {
-        console.log(image);
-        
-        const widerThanIsTall = image.bitmap.width >= image.bitmap.height;
-        
-        console.log('It is wider than it is tall?', widerThanIsTall);
-        const cropDimensions = {
-            width : widerThanIsTall ? image.bitmap.width / 2 : image.bitmap.width,
-            height : widerThanIsTall ? image.bitmap.height : image.bitmap.height / 2
-        };
-
-        const firstHalf = image;
-        const secondHalf = image.clone();
+function main(params){
     
-        firstHalf.crop(0, 0, cropDimensions.width, cropDimensions.height);
-        secondHalf.crop(widerThanIsTall ? cropDimensions.width : 0, widerThanIsTall ? 0 : cropDimensions.height, cropDimensions.width, cropDimensions.height);
+    console.log("File passed:", params.file);
 
-        console.log(firstHalf, secondHalf);
+    AWS.Credentials.accessKeyId = params.AWS_ACCESS_KEY_ID;
+    AWS.Credentials.secretAccessKey = params.AWS_SECRET_ACCESS_KEY;
 
-        const P = [];
-
-        const first = new Promise( (resolve, reject) => {
-            const outputPath = `/tmp/${uuid()}.jpg`;            
-            firstHalf.write(outputPath, function(err){
-                if(err){
-                    reject(err);
-                } else {
-                    resolve({
-                        image : firstHalf,
-                        filePath : outputPath
-                    });
-                }
-            });
-        });
-
-        const second = new Promise( (resolve, reject) => {
-            const outputPath = `/tmp/${uuid()}.jpg`;
-            secondHalf.write(outputPath, function(err){
-                if(err){
-                    reject(err);
-                } else {
-                    resolve({
-                        image : secondHalf,
-                        filePath : outputPath
-                    });
-                }
-            });
-        });
-        
-        P.push(first);
-        P.push(second);
-        
-        return Promise.all(P);
-
-    })
-    .then(halves => {
-
-        if(halves[0].image.bitmap.width > 50 || halves[0].image.bitmap.height > 50){
-            console.log(`Crop complete... but there's more work to be done!`);
-            
-            halves.forEach(half => {
-                const pr = spawn('node', [`${__dirname}/index.js`, '--file', half.filePath]);
-
-                pr.stdout.on('data', (data) => {
-                    console.log(`stdout: ${data}`);
-                });
-
-                pr.stderr.on('data', (data) => {
-                    console.log(`stderr: ${data}`);
-                });
-
-                pr.on('close', (code) => {
-                    console.log(`child process exited with code ${code}`);
-                });
-
-            });
-
+    if(!params.file){
+        return {
+            "status" : "err",
+            "message" : 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
         }
+    }
 
-        console.timeEnd('program');
-    })
-    .catch(err => {
-        console.log('IMAGE READ ERROR:', err);
-        console.timeEnd('program');
-    })    
-;
+    fetch(params.file)
+        .then(res => {
+            if(res.ok){
+                return res.buffer();
+            } else {
+                throw res;
+            }
+        })
+        .then(image => {
+
+            console.log(image);
+
+            Jimp.read(image)
+                .then(image => {
+                    console.log(image);
+                    
+                    const widerThanIsTall = image.bitmap.width >= image.bitmap.height;
+                    
+                    console.log('Does it have equal dimensions / is it wider than it is tall?', widerThanIsTall);
+                    const cropDimensions = {
+                        width : widerThanIsTall ? image.bitmap.width / 2 : image.bitmap.width,
+                        height : widerThanIsTall ? image.bitmap.height : image.bitmap.height / 2
+                    };
+            
+                    const firstHalf = image;
+                    const secondHalf = image.clone();
+
+                    firstHalf.crop(0, 0, cropDimensions.width, cropDimensions.height);
+                    secondHalf.crop(widerThanIsTall ? cropDimensions.width : 0, widerThanIsTall ? 0 : cropDimensions.height, cropDimensions.width, cropDimensions.height);
+            
+                    console.log(firstHalf, secondHalf);
+            
+                    const P = [];
+
+                    // https://s3.eu-west-2.amazonaws.com/sean-tracey-london-mitosis/test-upload.jpg
+
+                    const first = new Promise( (resolve, reject) => {
+                        
+                        firstHalf.getBuffer('image/jpeg', (err, image) => {
+                            console.log(err, image);
+
+                            if(err){
+                                reject(err);
+                            } else {
+
+                                S3.putObject({
+                                        Bucket : params.S3Bucket,
+                                        Key : `${params.processName}/${params.divisionLevel}/a.jpg`,
+                                        Body : image
+                                    }, (err, data) => {
+                                        if(err){
+                                            reject(err);
+                                        } else {
+                                            resolve({
+                                                image : secondHalf
+                                            });
+                                        }
+                                    })
+                                ;
+
+                            }
+
+                        });
+
+                    });
+                    
+                    const second = new Promise( (resolve, reject) => {
+                        
+                        secondHalf.getBuffer('image/jpeg', (err, image) => {
+                            console.log(err, image);
+
+                            if(err){
+                                reject(err);
+                            } else {
+
+                                S3.putObject({
+                                        Bucket : params.S3Bucket,
+                                        Key : `${params.processName}/${params.divisionLevel}/b.jpg`,
+                                        Body : image
+                                    }, (err, data) => {
+                                        if(err){
+                                            reject(err);
+                                        } else {
+                                            resolve({
+                                                image : secondHalf
+                                            });
+                                        }
+                                    })
+                                ;
+
+                            }
+                            
+                        });
+
+                    });
+                    
+                    P.push(first);
+                    P.push(second);
+                    
+                    return Promise.all(P);
+            
+                })
+                .then(halves => {
+                    console.timeEnd('program');
+                })
+                .catch(err => {
+                    console.log('IMAGE READ ERROR:', err);
+                    console.timeEnd('program');
+                })    
+            ;
+
+        })
+        .catch(err => {
+            console.log(err);
+        })
+
+    
+}
+
+module.exports = main;

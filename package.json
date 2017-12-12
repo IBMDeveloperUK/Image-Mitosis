@@ -22,9 +22,10 @@
   },
   "homepage": "https://github.com/seanmtracey/image-mitosis#readme",
   "dependencies": {
+    "aws-sdk": "^2.168.0",
     "dotenv": "^4.0.0",
     "jimp": "^0.2.28",
-    "uuid": "^3.1.0",
-    "yargs": "^10.0.3"
+    "node-fetch": "^1.7.3",
+    "uuid": "^3.1.0"
   }
 }
