@@ -1,5 +1,5 @@
 # Image Mitosis
-An experiment in measuring the efficiency and performance of various serverless cloud platforms (starting with IBM Cloud)
+An experiment in measuring the efficiency and performance of various serverless cloud platforms (starting with IBM Cloud). Also, it's a really fun programming challenge.
 
 ## Purpose
 
