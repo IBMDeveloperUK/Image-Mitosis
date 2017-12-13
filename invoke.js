@@ -11,5 +11,6 @@ I({
     processName : 'Barcelona',
     divisionLevel : "0",
     bucketName : process.env.BUCKETNAME,
-    functionURL : process.env.INVOCATION_FUNCTION_URL
+    functionURL : process.env.INVOCATION_FUNCTION_URL,
+    requiredParams : process.env.REQUIRED_PARAMS
 });

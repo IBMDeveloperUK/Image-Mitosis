@@ -7,15 +7,38 @@ const AWS = require('ibm-cos-sdk');
 
 function checkParameters(params){
 
-    if(!params.file){
+    const requiredParams = !params.requiredParams ? undefined : params.requiredParams.split(',');
 
+    if(requiredParams === undefined){
+        return false;
     }
+
+    const missingParams = [];
+
+    requiredParams.forEach(requiredParameter => {
+
+        if(params[requiredParameter] === undefined){
+            missingParams.push(requiredParameter);
+        }
+
+    });
+
+    if(missingParams.length > 0){
+        console.log(`The required parameters '${missingParams.join("', '")}' are missing from this invokation.`);
+        return false;
+    }
+
+    return true;
 
 }
 
 function main(params){
     
     console.log(params);
+
+    if(!checkParameters(params)){
+        throw 'Required parameters are not set';
+    }
 
     const S3 = new AWS.S3({
         apiKeyId: params.STORAGE_KEY,
