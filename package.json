@@ -4,7 +4,8 @@
   "description": "A function for splitting an image in two by it's longest dimension",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "package" : "zip -r action.zip * -x \".env\" -x \".git\" -x \"test/*\" -x \"invoke.js\""
   },
   "repository": {
     "type": "git",
