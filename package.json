@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "package" : "zip -r action.zip * -x \".env\" -x \".git\" -x \"test/*\" -x \"invoke.js\""
+    "package" : "zip -r action.zip * -x \".env\" -x \".git\" -x \"test/*\" -x \"invoke.js\" -x \"-x \"params.json\"\""
   },
   "repository": {
     "type": "git",
