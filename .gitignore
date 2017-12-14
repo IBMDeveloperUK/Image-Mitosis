@@ -2,3 +2,5 @@ node_modules/*
 test/*
 .DS_Store
 .env
+*zip
+params.json
