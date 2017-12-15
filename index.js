@@ -184,7 +184,6 @@ function main(params){
                 if(half.image.info.width > Number(params.targetSize) || half.image.info.height > number(params.targetSize) ){
                     const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
                     nextJobs.push(invocationURL);
-
                 }
             
             });
@@ -193,7 +192,7 @@ function main(params){
             console.timeEnd('program');
             return {
                 status : "ok",
-                message : "Process completed succesfully",
+                message : nextJobs.length > 0 ? 'Divisions successfully. Subsequent divisions triggered' : "Divisions successfully. No further divisions to perform.",
                 data : nextJobs
             };
         })
