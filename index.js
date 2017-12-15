@@ -1,7 +1,9 @@
 console.time('program');
+const fs = require('fs');
 const spawn = require('child_process').spawn;
+
 const fetch = require('node-fetch');
-const Jimp = require("jimp");
+const sharp = require("sharp");
 const uuid = require('uuid/v4');
 const AWS = require('ibm-cos-sdk');
 
@@ -41,10 +43,11 @@ function checkParameters(params){
 }
 
 function main(params){
-    
+
     console.log(params);
-    
-    // return params.REQUIRED_PARAMS;
+    console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
+    const TMP_FOLDER = params.TMP_FOLDER || '/tmp';
 
     const parametersAreValid = checkParameters(params);
 
@@ -55,7 +58,7 @@ function main(params){
             message : parametersAreValid.message
         }
     }
-    
+
     const S3 = new AWS.S3({
         apiKeyId: params.STORAGE_KEY,
         endpoint: params.OBJECT_STORAGE_ENDPOINT,
@@ -71,7 +74,7 @@ function main(params){
             message : 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
         }
     }
-    
+
     return fetch(params.file)
         .then(res => {
             if(res.ok){
@@ -80,104 +83,103 @@ function main(params){
                 throw res;
             }
         })
-        .then(image => {
+        .then(imageBuffer => {
 
-            console.log(image);
+            console.log(imageBuffer);
+            console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+            const imageObject = sharp(imageBuffer);
 
-            return Jimp.read(image)
-                .then(image => {
-                    console.log(image);
-                    
-                    const widerThanIsTall = image.bitmap.width >= image.bitmap.height;
-                    
-                    console.log('MEM:', process.memoryUsage());
-
-                    console.log('Does it have equal dimensions / is it wider than it is tall?', widerThanIsTall);
-                    const cropDimensions = {
-                        width : widerThanIsTall ? image.bitmap.width / 2 : image.bitmap.width,
-                        height : widerThanIsTall ? image.bitmap.height : image.bitmap.height / 2
-                    };
-            
-                    const firstHalf = image;
-                    const secondHalf = image.clone();
-
-                    firstHalf.crop(0, 0, cropDimensions.width, cropDimensions.height);
-                    secondHalf.crop(widerThanIsTall ? cropDimensions.width : 0, widerThanIsTall ? 0 : cropDimensions.height, cropDimensions.width, cropDimensions.height);
-
-                    console.log('MEM:', process.memoryUsage());
-                    
-                    console.log(firstHalf, secondHalf);
-            
-                    const P = [firstHalf, secondHalf].map( (halve, idx) => {
-
-                        console.log('MEM:', process.memoryUsage());
-
-                        return new Promise( (resolve, reject) => {
-                            
-                            halve.getBuffer('image/jpeg', (err, image) => {
-                                console.log(err, image);
-                                
-                                if(err){
-                                    reject(err);
-                                } else {
-                                    
-                                    const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
-                                    console.log('MEM:', process.memoryUsage());
-                    
-                                    S3.putObject({
-                                            Bucket : params.BUCKETNAME,
-                                            Key : bucketPath,
-                                            Body : image,
-                                            ACL:'public-read'
-                                        }, (err, data) => {
-                                            if(err){
-                                                reject(err);
-                                            } else {
-                                                resolve({
-                                                    image : secondHalf,
-                                                    publicPath : `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.BUCKETNAME}/${params.processName}/${params.divisionLevel}/${idx}.jpg`
-                                                });
-                                            }
-                                        })
-                                    ;
-    
-                                }
-    
-                            });
-    
-                        });
-
-                    });
-                    
-                    return Promise.all(P);
-            
+            return imageObject
+                .metadata()
+                .then(metadata => {
+                    return {
+                        info : metadata,
+                        images : [imageObject, imageObject.clone()]
+                    }
                 })
-                .then(halves => {
-
-                    const nextJobs = [];
-
-                    // Further invocations
-                    halves.forEach(half => {
-                        console.log(half.publicPath);
-                        const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
-                        console.log(invocationURL);
-                        nextJobs.push(invocationURL);
-                    });
-
-                    console.timeEnd('program');
-                    return {complete : nextJobs};
-                })
-                .catch(err => {
-                    console.log('IMAGE READ ERROR:', err);
-                    console.timeEnd('program');
-                })    
             ;
 
         })
-        .catch(err => {
-            console.log(err);
+        .then(data => {
+
+            console.log(data);
+            console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
+            const widerThanIsTall = data.info.width >= data.info.height;
+            
+            const cropDimensions = {
+                width : widerThanIsTall ? data.info.width / 2 : data.info.width,
+                height : widerThanIsTall ? data.info.height : data.info.height / 2
+            };
+
+            const crops = data.images.map( (image, idx) => {
+
+                const dimensions = {
+                    left : idx === 0 ? 0 : widerThanIsTall ? cropDimensions.width : 0,
+                    top : idx === 0 ? 0 : widerThanIsTall ? 0 : cropDimensions.height,
+                    width : cropDimensions.width,
+                    height :cropDimensions.height 
+                };
+                console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+                return image
+                    .extract(dimensions)
+                    .jpeg({force : true})
+                    .toBuffer()
+                ;
+            }); 
+
+            return Promise.all(crops);
+
         })
+        .then(crops => {
+            console.log(crops);
+            console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+            const uploads = crops.map( (crop, idx) => {
+
+                return new Promise( (resolve, reject) => {
+                    
+                    const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
+
+                    S3.putObject({
+                            Bucket : params.BUCKETNAME,
+                            Key : bucketPath,
+                            Body : crop,
+                            ACL:'public-read'
+                        }, (err, data) => {
+                            if(err){
+                                reject(err);
+                            } else {
+                                resolve({
+                                    image : crop,
+                                    publicPath : `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.BUCKETNAME}/${params.processName}/${params.divisionLevel}/${idx}.jpg`
+                                });
+                            }
+                        })
+                    ;
+
+                });
+
+            })
+
+            return Promise.all(uploads);
+
+        })
+        .then(halves => {
+            const nextJobs = [];
+            
+            // Further invocations
+            halves.forEach(half => {
+                const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
+                nextJobs.push(invocationURL);
+            });
+
+            console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+            console.timeEnd('program');
+            return {complete : nextJobs};
+        })
+        .catch(err => console.log(err))
     ;
+
 }
 
 exports.main = main;
