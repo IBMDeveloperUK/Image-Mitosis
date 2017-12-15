@@ -1,5 +1,7 @@
 console.time('program');
+const fs = require('fs');
 const spawn = require('child_process').spawn;
+
 const fetch = require('node-fetch');
 const Jimp = require("jimp");
 const uuid = require('uuid/v4');
@@ -41,9 +43,11 @@ function checkParameters(params){
 }
 
 function main(params){
-    
+
     console.log(params);
-    
+
+    const TMP_FOLDER = params.TMP_FOLDER || '/tmp';
+
     // return params.REQUIRED_PARAMS;
 
     const parametersAreValid = checkParameters(params);
@@ -55,7 +59,7 @@ function main(params){
             message : parametersAreValid.message
         }
     }
-    
+
     const S3 = new AWS.S3({
         apiKeyId: params.STORAGE_KEY,
         endpoint: params.OBJECT_STORAGE_ENDPOINT,
@@ -71,7 +75,7 @@ function main(params){
             message : 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
         }
     }
-    
+
     return fetch(params.file)
         .then(res => {
             if(res.ok){
@@ -87,47 +91,49 @@ function main(params){
             return Jimp.read(image)
                 .then(image => {
                     console.log(image);
-                    
+
                     const widerThanIsTall = image.bitmap.width >= image.bitmap.height;
-                    
-                    console.log('MEM:', process.memoryUsage());
+
+                    console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
 
                     console.log('Does it have equal dimensions / is it wider than it is tall?', widerThanIsTall);
                     const cropDimensions = {
                         width : widerThanIsTall ? image.bitmap.width / 2 : image.bitmap.width,
                         height : widerThanIsTall ? image.bitmap.height : image.bitmap.height / 2
                     };
-            
+
                     const firstHalf = image;
                     const secondHalf = image.clone();
+
+                    console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
 
                     firstHalf.crop(0, 0, cropDimensions.width, cropDimensions.height);
                     secondHalf.crop(widerThanIsTall ? cropDimensions.width : 0, widerThanIsTall ? 0 : cropDimensions.height, cropDimensions.width, cropDimensions.height);
 
-                    console.log('MEM:', process.memoryUsage());
-                    
+                    console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
                     console.log(firstHalf, secondHalf);
-            
+
                     const P = [firstHalf, secondHalf].map( (halve, idx) => {
 
-                        console.log('MEM:', process.memoryUsage());
+                        console.log(`MEM ${idx}:`, process.memoryUsage().heapUsed / 1000000, 'mb');
 
                         return new Promise( (resolve, reject) => {
-                            
+
+                            const filePath = `${TMP_FOLDER}/${params.processName}-${params.divisionLevel}-${idx}.jpg`;
+                            const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
+
+                            // halve.getBuffer(filePath, (err) => {
                             halve.getBuffer('image/jpeg', (err, image) => {
-                                console.log(err, image);
-                                
-                                if(err){
-                                    reject(err);
-                                } else {
-                                    
-                                    const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
-                                    console.log('MEM:', process.memoryUsage());
-                    
+                                if(!err){
+                                    console.log(`MEM ${idx}:`, process.memoryUsage().heapUsed / 1000000, 'mb');
+                                    process.exit();
                                     S3.putObject({
                                             Bucket : params.BUCKETNAME,
                                             Key : bucketPath,
-                                            Body : image,
+                                            Body : fs.createReadStream( filePath, { autoClose : true } ),
                                             ACL:'public-read'
                                         }, (err, data) => {
                                             if(err){
@@ -140,17 +146,18 @@ function main(params){
                                             }
                                         })
                                     ;
-    
+
+                                } else {
+                                    reject(err);
                                 }
-    
-                            });
-    
+                            })
+
                         });
 
                     });
-                    
+
                     return Promise.all(P);
-            
+
                 })
                 .then(halves => {
 
@@ -170,7 +177,7 @@ function main(params){
                 .catch(err => {
                     console.log('IMAGE READ ERROR:', err);
                     console.timeEnd('program');
-                })    
+                })
             ;
 
         })
