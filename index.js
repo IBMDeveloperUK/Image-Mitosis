@@ -108,8 +108,8 @@ function main(params){
             const widerThanIsTall = data.info.width >= data.info.height;
             
             const cropDimensions = {
-                width : widerThanIsTall ? data.info.width / 2 : data.info.width,
-                height : widerThanIsTall ? data.info.height : data.info.height / 2
+                width : widerThanIsTall ? data.info.width / 2 | 0 : data.info.width,
+                height : widerThanIsTall ? data.info.height : data.info.height / 2 | 0
             };
 
             const crops = data.images.map( (image, idx) => {
@@ -125,6 +125,15 @@ function main(params){
                     .extract(dimensions)
                     .jpeg({force : true})
                     .toBuffer()
+                    .then(buff => {
+                        return {
+                            buffer : buff,
+                            info : {
+                                width : cropDimensions.width,
+                                height : cropDimensions.height
+                            }
+                        };
+                    })
                 ;
             }); 
 
@@ -143,7 +152,7 @@ function main(params){
                     S3.putObject({
                             Bucket : params.BUCKETNAME,
                             Key : bucketPath,
-                            Body : crop,
+                            Body : crop.buffer,
                             ACL:'public-read'
                         }, (err, data) => {
                             if(err){
@@ -169,8 +178,15 @@ function main(params){
             
             // Further invocations
             halves.forEach(half => {
-                const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
-                nextJobs.push(invocationURL);
+                
+                console.log(half);
+
+                if(half.image.info.width > Number(params.targetSize) || half.image.info.height > number(params.targetSize) ){
+                    const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
+                    nextJobs.push(invocationURL);
+
+                }
+            
             });
 
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
@@ -179,7 +195,7 @@ function main(params){
                 status : "ok",
                 message : "Process completed succesfully",
                 data : nextJobs
-            }
+            };
         })
         .catch(err => {
             console.log(err)
