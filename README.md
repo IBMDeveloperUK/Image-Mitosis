@@ -14,6 +14,12 @@ This will repeat until the output images are 50x50 pixels, at which point the pr
 4. Create a `.env` file and populate with the required environment parameters (detailed below)
 5. Run `node invoke.js` to run the program locally
 
+## Building dependencies for OpenWhisk (w. Node 8.9.1) and packaging for IBM Cloud
+
+1. Install Docker on your system
+2. Follow James' [instructions](http://jamesthom.as/blog/2016/11/28/npm-modules-in-openwhisk/)
+3. Run `npm run package && wsk action update [YOUR ACTION NAME] --kind nodejs:8 action.zip`
+
 ## Environment variables and other prerequisites
 
 The following are environment variables required to successfully run this program.

@@ -175,9 +175,19 @@ function main(params){
 
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
             console.timeEnd('program');
-            return {complete : nextJobs};
+            return {
+                status : "ok",
+                message : "Process completed succesfully",
+                data : nextJobs
+            }
         })
-        .catch(err => console.log(err))
+        .catch(err => {
+            console.log(err)
+            return {
+                status : "err",
+                message : err
+            };
+        })
     ;
 
 }
