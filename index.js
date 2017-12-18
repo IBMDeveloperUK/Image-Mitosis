@@ -106,7 +106,7 @@ function main(params){
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
 
             const widerThanIsTall = data.info.width >= data.info.height;
-            
+
             const cropDimensions = {
                 width : widerThanIsTall ? data.info.width / 2 | 0 : data.info.width,
                 height : widerThanIsTall ? data.info.height : data.info.height / 2 | 0
@@ -118,7 +118,7 @@ function main(params){
                     left : idx === 0 ? 0 : widerThanIsTall ? cropDimensions.width : 0,
                     top : idx === 0 ? 0 : widerThanIsTall ? 0 : cropDimensions.height,
                     width : cropDimensions.width,
-                    height :cropDimensions.height 
+                    height :cropDimensions.height
                 };
                 console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
                 return image
@@ -135,7 +135,7 @@ function main(params){
                         };
                     })
                 ;
-            }); 
+            });
 
             return Promise.all(crops);
 
@@ -146,8 +146,8 @@ function main(params){
             const uploads = crops.map( (crop, idx) => {
 
                 return new Promise( (resolve, reject) => {
-                    
-                    const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}.jpg`;
+
+                    const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}-${uuid()}.jpg`;
 
                     S3.putObject({
                             Bucket : params.BUCKETNAME,
@@ -160,7 +160,7 @@ function main(params){
                             } else {
                                 resolve({
                                     image : crop,
-                                    publicPath : `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.BUCKETNAME}/${params.processName}/${params.divisionLevel}/${idx}.jpg`
+                                    publicPath : `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.BUCKETNAME}/${bucketPath}`
                                 });
                             }
                         })
@@ -175,17 +175,18 @@ function main(params){
         })
         .then(halves => {
             const nextJobs = [];
-            
+
             // Further invocations
             halves.forEach(half => {
-                
+
                 console.log(half);
 
-                if(half.image.info.width > Number(params.targetSize) || half.image.info.height > number(params.targetSize) ){
+                if(half.image.info.width > Number(params.targetSize) || half.image.info.height > Number(params.targetSize) ){
                     const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
+                    fetch(invocationURL);
                     nextJobs.push(invocationURL);
                 }
-            
+
             });
 
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
