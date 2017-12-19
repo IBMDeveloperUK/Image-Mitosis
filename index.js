@@ -6,6 +6,7 @@ const fetch = require('node-fetch');
 const sharp = require("sharp");
 const uuid = require('uuid/v4');
 const AWS = require('ibm-cos-sdk');
+const metrics = require('openwhisk-metrics');
 
 function checkParameters(params){
 
@@ -220,4 +221,4 @@ function main(params){
 
 }
 
-exports.main = main;
+exports.main = metrics(main);

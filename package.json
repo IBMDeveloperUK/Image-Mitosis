@@ -26,6 +26,7 @@
     "dotenv": "^4.0.0",
     "ibm-cos-sdk": "^1.1.1",
     "node-fetch": "^1.7.3",
+    "openwhisk-metrics": "git+ssh://git@github.ibm.com:thomas6/openwhisk-metrics.git",
     "sharp": "^0.18.4",
     "uuid": "^3.1.0"
   }
