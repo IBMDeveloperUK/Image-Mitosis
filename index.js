@@ -6,15 +6,16 @@ const fetch = require('node-fetch');
 const sharp = require("sharp");
 const uuid = require('uuid/v4');
 const AWS = require('ibm-cos-sdk');
+const metrics = require('openwhisk-metrics');
 
-function checkParameters(params){
+function checkParameters(params) {
 
     const requiredParams = !params.REQUIRED_PARAMS ? undefined : params.REQUIRED_PARAMS.split(',');
 
-    if(requiredParams === undefined){
+    if (requiredParams === undefined) {
         return {
-            ok : false,
-            message : 'The REQUIRED_PARAMS property of the params object is missing'
+            ok: false,
+            message: 'The REQUIRED_PARAMS property of the params object is missing'
         };
     }
 
@@ -22,27 +23,27 @@ function checkParameters(params){
 
     requiredParams.forEach(requiredParameter => {
 
-        if(params[requiredParameter] === undefined){
+        if (params[requiredParameter] === undefined) {
             missingParams.push(requiredParameter);
         }
 
     });
 
-    if(missingParams.length > 0){
+    if (missingParams.length > 0) {
         return {
-            ok : false,
-            message : `The required parameters '${missingParams.join("', '")}' are missing from this invokation.`
+            ok: false,
+            message: `The required parameters '${missingParams.join("', '")}' are missing from this invokation.`
         }
     }
 
     return {
-        ok : true,
-        message : ''
+        ok: true,
+        message: ''
     };
 
 }
 
-function main(params){
+function main(params) {
 
     console.log(params);
     console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
@@ -51,11 +52,11 @@ function main(params){
 
     const parametersAreValid = checkParameters(params);
 
-    if(!parametersAreValid.ok){
+    if (!parametersAreValid.ok) {
         // throw 'Required parameters are not set';
         return {
-            status : 'err',
-            message : parametersAreValid.message
+            status: 'err',
+            message: parametersAreValid.message
         }
     }
 
@@ -68,16 +69,16 @@ function main(params){
 
     console.log(S3.endpoint.hostname);
 
-    if(!params.file){
+    if (!params.file) {
         return {
-            status : "err",
-            message : 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
+            status: "err",
+            message: 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
         }
     }
 
     return fetch(params.file)
         .then(res => {
-            if(res.ok){
+            if (res.ok) {
                 return res.buffer();
             } else {
                 throw res;
@@ -93,11 +94,10 @@ function main(params){
                 .metadata()
                 .then(metadata => {
                     return {
-                        info : metadata,
-                        images : [imageObject, imageObject.clone()]
+                        info: metadata,
+                        images: [imageObject, imageObject.clone()]
                     }
-                })
-            ;
+                });
 
         })
         .then(data => {
@@ -108,33 +108,34 @@ function main(params){
             const widerThanIsTall = data.info.width >= data.info.height;
 
             const cropDimensions = {
-                width : widerThanIsTall ? data.info.width / 2 | 0 : data.info.width,
-                height : widerThanIsTall ? data.info.height : data.info.height / 2 | 0
+                width: widerThanIsTall ? data.info.width / 2 | 0 : data.info.width,
+                height: widerThanIsTall ? data.info.height : data.info.height / 2 | 0
             };
 
-            const crops = data.images.map( (image, idx) => {
+            const crops = data.images.map((image, idx) => {
 
                 const dimensions = {
-                    left : idx === 0 ? 0 : widerThanIsTall ? cropDimensions.width : 0,
-                    top : idx === 0 ? 0 : widerThanIsTall ? 0 : cropDimensions.height,
-                    width : cropDimensions.width,
-                    height :cropDimensions.height
+                    left: idx === 0 ? 0 : widerThanIsTall ? cropDimensions.width : 0,
+                    top: idx === 0 ? 0 : widerThanIsTall ? 0 : cropDimensions.height,
+                    width: cropDimensions.width,
+                    height: cropDimensions.height
                 };
                 console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
                 return image
                     .extract(dimensions)
-                    .jpeg({force : true})
+                    .jpeg({
+                        force: true
+                    })
                     .toBuffer()
                     .then(buff => {
                         return {
-                            buffer : buff,
-                            info : {
-                                width : cropDimensions.width,
-                                height : cropDimensions.height
+                            buffer: buff,
+                            info: {
+                                width: cropDimensions.width,
+                                height: cropDimensions.height
                             }
                         };
-                    })
-                ;
+                    });
             });
 
             return Promise.all(crops);
@@ -143,28 +144,27 @@ function main(params){
         .then(crops => {
             console.log(crops);
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
-            const uploads = crops.map( (crop, idx) => {
+            const uploads = crops.map((crop, idx) => {
 
-                return new Promise( (resolve, reject) => {
+                return new Promise((resolve, reject) => {
 
                     const bucketPath = `${params.processName}/${params.divisionLevel}/${idx}-${uuid()}.jpg`;
 
                     S3.putObject({
-                            Bucket : params.BUCKETNAME,
-                            Key : bucketPath,
-                            Body : crop.buffer,
-                            ACL:'public-read'
-                        }, (err, data) => {
-                            if(err){
-                                reject(err);
-                            } else {
-                                resolve({
-                                    image : crop,
-                                    publicPath : `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.BUCKETNAME}/${bucketPath}`
-                                });
-                            }
-                        })
-                    ;
+                        Bucket: params.BUCKETNAME,
+                        Key: bucketPath,
+                        Body: crop.buffer,
+                        ACL: 'public-read'
+                    }, (err, data) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve({
+                                image: crop,
+                                publicPath: `https://${params.OBJECT_STORAGE_ENDPOINT}/${params.BUCKETNAME}/${bucketPath}`
+                            });
+                        }
+                    });
 
                 });
 
@@ -181,7 +181,7 @@ function main(params){
 
                 console.log(half);
 
-                if(half.image.info.width > Number(params.targetSize) || half.image.info.height > Number(params.targetSize) ){
+                if (half.image.info.width > Number(params.targetSize) || half.image.info.height > Number(params.targetSize)) {
                     const invocationURL = `${params.INVOCATION_FUNCTION_URL}?divisionLevel=${Number(params.divisionLevel) + 1}&processName=${params.processName}&file=${half.publicPath}`;
                     fetch(invocationURL);
                     nextJobs.push(invocationURL);
@@ -192,20 +192,19 @@ function main(params){
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
             console.timeEnd('program');
             return {
-                status : "ok",
-                message : nextJobs.length > 0 ? 'Divisions successfully. Subsequent divisions triggered' : "Divisions successfully. No further divisions to perform.",
-                data : nextJobs
+                status: "ok",
+                message: nextJobs.length > 0 ? 'Divisions successfully. Subsequent divisions triggered' : "Divisions successfully. No further divisions to perform.",
+                data: nextJobs
             };
         })
         .catch(err => {
             console.log(err)
             return {
-                status : "err",
-                message : err
+                status: "err",
+                message: err
             };
-        })
-    ;
+        });
 
 }
 
-exports.main = main;
+exports.main = metrics(main);
