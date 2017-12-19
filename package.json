@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "package": "zip -r action.zip * -x \".env\" -x \".git\" -x \"test/*\" -x \"invoke.js\" -x \"-x \"params.json\"\"",
-    "compile-docker": "rm -rf ./node_modules/sharp && docker run -it -v \"$(pwd):/usr/src/app\" nodesource/trusty:6.7 /usr/src/app/prepare.sh"
+    "compile-docker": "rm -rf ./node_modules/sharp && docker run -it -v \"$(pwd):/usr/src/app\" nodesource/trusty:6.7 /usr/src/app/prepare.sh",
+    "package": "zip -r action.zip * -x \".env\" -x \".git\" -x \"test/*\" -x \"invoke.js\" -x \"-x \"params.json\"\""
   },
   "repository": {
     "type": "git",

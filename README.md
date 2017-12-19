@@ -14,11 +14,18 @@ This will repeat until the output images are 50x50 pixels, at which point the pr
 4. Create a `.env` file and populate with the required environment parameters (detailed below)
 5. Run `node invoke.js` to run the program locally
 
-## Building dependencies for OpenWhisk (w. Node 8.9.1) and packaging for IBM Cloud
+## Building dependencies for OpenWhisk (w. Node 8.9.1), and packaging + deploying for IBM Cloud
 
-1. Install Docker on your system
-2. Follow James' [instructions](http://jamesthom.as/blog/2016/11/28/npm-modules-in-openwhisk/)
-3. Run `npm run package && wsk action update [YOUR ACTION NAME] --kind nodejs:8 action.zip`
+This function has a native dependency which needs to be built for the target system. Fortunately, Docker makes it easy to build native dependecies for remote systems. 
+
+(These instructions are derived from James' [instructions](http://jamesthom.as/blog/2016/11/28/npm-modules-in-openwhisk/))
+
+1. Install [Docker](https://www.docker.com/) on your system
+2. Install the Ubuntu Trusty (6.7) Docker image from nodesource `docker pull nodesource/trusty:6.7`.
+3. Install the JavaScript Node.js dependencies `npm install`.
+4. Compile the native dependencies with Docker `npm run compile-docker`.
+5. Package the newly compiled dependencies for use on OpenWhisk with `npm run package`.
+6. Upload to OpenWhisk with `wsk action update [YOUR ACTION NAME] --kind nodejs:8 action.zip`
 
 ## Environment variables and other prerequisites
 
