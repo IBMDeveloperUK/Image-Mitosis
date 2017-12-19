@@ -42,38 +42,7 @@ function checkParameters(params){
 
 }
 
-function main(params){
-
-    console.log(params);
-    console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
-
-    const TMP_FOLDER = params.TMP_FOLDER || '/tmp';
-
-    const parametersAreValid = checkParameters(params);
-
-    if(!parametersAreValid.ok){
-        // throw 'Required parameters are not set';
-        return {
-            status : 'err',
-            message : parametersAreValid.message
-        }
-    }
-
-    const S3 = new AWS.S3({
-        apiKeyId: params.STORAGE_KEY,
-        endpoint: params.OBJECT_STORAGE_ENDPOINT,
-        ibmAuthEndpoint: "https://iam.ng.bluemix.net/oidc/token",
-        serviceInstanceId: params.OBJECT_INSTANCE_ID
-    });
-
-    console.log(S3.endpoint.hostname);
-
-    if(!params.file){
-        return {
-            status : "err",
-            message : 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
-        }
-    }
+function processFile(params){
 
     return fetch(params.file)
         .then(res => {
@@ -143,6 +112,16 @@ function main(params){
         .then(crops => {
             console.log(crops);
             console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
+            const S3 = new AWS.S3({
+                apiKeyId: params.STORAGE_KEY,
+                endpoint: params.OBJECT_STORAGE_ENDPOINT,
+                ibmAuthEndpoint: "https://iam.ng.bluemix.net/oidc/token",
+                serviceInstanceId: params.OBJECT_INSTANCE_ID
+            });
+        
+            console.log(S3.endpoint.hostname);
+
             const uploads = crops.map( (crop, idx) => {
 
                 return new Promise( (resolve, reject) => {
@@ -205,6 +184,39 @@ function main(params){
             };
         })
     ;
+
+}
+
+function main(params){
+
+    console.log(params);
+    console.log('MEM:', process.memoryUsage().heapUsed / 1000000, 'mb');
+
+    const TMP_FOLDER = params.TMP_FOLDER || '/tmp';
+
+    const parametersAreValid = checkParameters(params);
+
+    if(!parametersAreValid.ok){
+        // throw 'Required parameters are not set';
+        return {
+            status : 'err',
+            message : parametersAreValid.message
+        }
+    }
+
+    if(!params.file){
+        return {
+            status : "err",
+            message : 'No file passed for processing. Please run this program with an absolute or relative file path passed as the first argument.'
+        }
+    }
+
+    processFile(params);
+
+    return {
+        status : 'ok',
+        message : 'File processing triggered.'
+    };
 
 }
 
